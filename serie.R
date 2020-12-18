@@ -11,14 +11,18 @@
 # A
 
 library(ade4)
+library(astsa)
+library(ape)
 
 # C
 library(car) 
 library(changepoint)
 library(cluster)
+library(coda)
 
 #D
 library(data.table)
+library(dlm)
 library(dplyr)
 library(dygraphs)
 
@@ -32,6 +36,8 @@ library(FinTS)
 library(forecast)
 library(foreign)
 library(fUnitRoots)
+library(fftwtools)
+library(fpp)
 
 # G
 library(ggcorrplot)
@@ -42,10 +48,15 @@ library(Hmisc)
 
 # I
 library(ipred)
+library(influence.ME)
+library(influence.SEM)
 
 #L
 library(lattice)
+library(lme4)
+library(lmtest)
 library(lubridate)
+library(longitudinal)
 
 # M
 library(MASS)
@@ -57,6 +68,7 @@ library(openxlsx)
 
 #P
 library(partsm)  
+library(pbkrtest)
 
 # R
 library(randomForest)
@@ -64,10 +76,11 @@ library(readr)
 library(readxl)
 library(relimp)
 library(rpart)
-
+library(RLRsim)
 library(reshape)
 
 # S
+library(signal)
 library(scales)
 library(st)
 library(StatMeasures)
@@ -76,6 +89,9 @@ library(StatMeasures)
 library(tseries)
 library(tsoutliers)
 library(TSrepr)
+library(TSA)
+library(tidyverse)
+library(tuneR)
 
 #U
 library(UsingR)
@@ -83,6 +99,9 @@ library(UsingR)
 # X
 library(XML)
 library(xts)
+
+# Z
+library(zoo)
   
 # ----------------------------------------------------------------------------------------------
 #
@@ -125,6 +144,10 @@ plot(serie_ozono,xlab= "Muestra",ylab="Ozono (pphm)")
 #            Presipitacion (mm)
 
 # Importacion de los datos
+
+Crecimiento <- read_excel("c:/Users/Usuario/Desktop/series de tiempo/serie2.xlsx")
+View(Crecimiento)
+
 Clima <- read_excel("c:/Users/Usuario/Desktop/series de tiempo/serie.xlsx")
 View(Clima)
 
@@ -284,10 +307,6 @@ Ljung.Box.Test
 ## Estudio en la parte estacional de la serie. 
 
 seasonplot(serie_ozono,12,ylab = "Ozono(pphm)",col=c(1,2,3,4,5,6,7,8,9,1,2,3,4,5,6))
-par(mfrow=c(1,1))
-spectrum(serie_ozono)
-abline(v=1:10, lty=3)
-
 
 At <- ArchTest(serie_ozono, lag=5)
 if(At$p.value < 0.05) {
@@ -373,5 +392,48 @@ par(mfrow=c(1,1))
 moda_1<- forecast(SARIMA_B,h=20)
 moda_1 
 plot(moda_1)
+
+#TRANSFORMADA DE FOURIER
+
+spectrum(serie_ozono)
+abline(v=1:10, lty=3)
+ozono.fourier <- fft(ozono$V1)
+plot(abs(ozono.fourier), type="h")
+plot(Arg(ozono.fourier), type="h")
+obj = stft(ozono$V1)
+plot(obj, cex = 5)
+
+dev.new(); plot(obj, mode = "pval", reassign = FALSE, topthresh = Inf, log = "y") 
+
+# MODELO DE EFECTOS MIXTOS
+
+ggplot(data = Crecimiento, aes(x = Semana, y = Altura, color = Nplant)) +
+  geom_point() +
+  theme_bw() +
+  facet_wrap(~ Nplant) + 
+  theme(legend.position = "none")
+
+# MODELO DE INTERCEPTO ALEATORIO CON MEDIA FIJA
+
+M0 <- lmer(NHojas ~ 1 + Semana + Trat + TT + Altura + (1|Nplant), Crecimiento, REML = FALSE) 
+summary(M0)
+
+# MODELO CON PENDIENTE E INTERCEPTO ALEATORIO CONDICIONADO 
+M1 <- lmer(NHojas ~ 1 + Semana + Trat + TT + Altura + (Semana|Nplant), Crecimiento, REML = FALSE) 
+summary(M1)
+
+# MODELO CON PENDIENTE E INTERCEPTO ALEATORIO NO CONDICIONADO
+M2 <- lmer(NHojas ~ 1 + Semana + Trat + TT + Altura + (1|Nplant) + (0 + Semana|Nplant), Crecimiento, REML = FALSE)
+summary(M2)
+
+# Validación (Analisis de residuos)
+plot(fitted(M0),resid(M0,type="pearson"),col="blue")
+densityplot(~ resid(M0)| factor(Semana), Crecimiento, groups = Trat,
+            plot.points = TRUE, auto.key = TRUE,  xlim=c(-8,8), ylim=c(0.0,0.8))
+
+par(mfrow = c(1, 2))
+xyplot( NHojas ~Altura|Semana, data = Crecimiento, group = Trat, color='red',  grid = TRUE, xlim=c(0,8), ylim=c(0,20))
+xyplot( NHojas ~predict(M0)|Semana, data = Crecimiento,   grid = TRUE,xlim=c(0,8), ylim=c(0,20))
+
 
 
